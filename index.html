@@ -3,23 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Criador de Rotas</title>
+    <title>Criador de Rotas - Excel</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- SheetJS para ler a planilha -->
+    <!-- SheetJS para ler e gerar a planilha -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans p-4 sm:p-8">
     <div class="max-w-xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden p-6 sm:p-8 border border-gray-100">
-        <h1 class="text-2xl font-bold mb-2 text-center text-blue-600">Gerador de Links de Rota</h1>
-        <p class="text-sm text-gray-500 mb-6 text-center">Gere uma lista em .txt com os links do Google Maps</p>
+        <h1 class="text-2xl font-bold mb-2 text-center text-green-600">Gerador de Links de Rota</h1>
+        <p class="text-sm text-gray-500 mb-6 text-center">Gere uma nova planilha (.xlsx) com os links do Google Maps</p>
         
         <div class="mb-6">
             <label class="block text-sm font-semibold text-gray-700 mb-2">Selecione a planilha (.xlsx)</label>
-            <input type="file" id="fileInput" accept=".xlsx" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors cursor-pointer border border-gray-200 rounded-md" />
+            <input type="file" id="fileInput" accept=".xlsx" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 transition-colors cursor-pointer border border-gray-200 rounded-md" />
         </div>
 
-        <button id="processBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm" disabled>
-            Processar e Baixar lista .txt
+        <button id="processBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm" disabled>
+            Processar e Baixar Planilha .xlsx
         </button>
 
         <div id="statusArea" class="mt-6 hidden">
@@ -28,7 +28,7 @@
                 <span><span id="progress">0</span> / <span id="total">0</span></span>
             </div>
             <div class="w-full bg-gray-200 rounded-full h-2.5">
-                <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                <div id="progressBar" class="bg-green-600 h-2.5 rounded-full" style="width: 0%"></div>
             </div>
         </div>
 
@@ -149,17 +149,11 @@
                         return;
                     }
 
-                    // Tratar a coluna Sequência para manter a ordem da rota
                     rows.forEach(r => r.Seq = isNaN(Number(r.Seq)) || r.Seq === "" ? 9999 : Number(r.Seq));
                     rows.sort((a, b) => a.Seq - b.Seq);
 
                     const total = rows.length;
                     totalSpan.textContent = total;
-                    
-                    // Cabeçalho do arquivo TXT
-                    let txtContent = "=========================================\n";
-                    txtContent += "          LINKS DE ROTA (MAPS)\n";
-                    txtContent += "=========================================\n\n";
 
                     for (let i = 0; i < total; i++) {
                         const currentProgress = i + 1;
@@ -171,32 +165,29 @@
                         const status = await verificarParada(linha["Endereço"], linha["Bairro"], linha["Cidade"], linha["CEP"]);
                         const link = montarLinkMaps(linha["Endereço"], linha["N°"], linha["Bairro"], linha["Cidade"], linha["CEP"]);
 
+                        // Adiciona as novas colunas direto no objeto da linha
+                        linha["Status Verificacao"] = status;
+                        linha["Link Maps"] = link;
+
                         const seq_str = linha.Seq === 9999 ? "?" : linha.Seq.toString().padStart(2, '0');
                         const msgLog = `[Seq ${seq_str}] ${linha["Destinatario"]} -- ${status}\nLink: ${link}\n\n`;
                         
-                        // Adiciona ao TXT e mostra na tela
-                        txtContent += msgLog;
                         logDiv.innerHTML += msgLog;
                         logDiv.scrollTop = logDiv.scrollHeight;
 
-                        // Pausa de 300ms para não sobrecarregar a API do ViaCEP
                         await new Promise(r => setTimeout(r, 300));
                     }
 
-                    // Lógica para forçar o download do arquivo .txt
-                    const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
+                    // Gera o novo arquivo Excel
+                    const newWorksheet = XLSX.utils.json_to_sheet(rows);
+                    const newWorkbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, "Rota com Links");
+                    
                     const originalName = file.name.replace(/\.[^/.]+$/, "");
-                    a.download = `${originalName}_links.txt`; 
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+                    XLSX.writeFile(newWorkbook, `${originalName}_com_links.xlsx`);
 
                     logDiv.innerHTML += "=========================================\n";
-                    logDiv.innerHTML += "PROCESSAMENTO CONCLUÍDO!\nO arquivo .txt foi baixado automaticamente.\n";
+                    logDiv.innerHTML += "PROCESSAMENTO CONCLUÍDO!\nA nova planilha .xlsx foi baixada automaticamente.\n";
                     logDiv.scrollTop = logDiv.scrollHeight;
                     
                 } catch (error) {
